@@ -24,7 +24,6 @@ class ImageSlide(BaseModel):
     voice: str
     src: str
     rect: Rect | None = None
-    transition: Literal["fade", "lerp_rect"] = "fade"
 
 
 Slide = Annotated[Union[CodeSlide, ImageSlide], Field(discriminator="type")]

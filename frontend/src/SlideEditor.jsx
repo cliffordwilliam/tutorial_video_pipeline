@@ -1,6 +1,11 @@
+import { useState } from 'react'
+import FileTreeEditor from './FileTreeEditor'
+
 const RECT_FIELDS = ['x', 'y', 'w', 'h']
 
 function SlideEditor({ slide, onChange }) {
+  const [clipboard, setClipboard] = useState(null)
+
   if (!slide) {
     return <div className="slide-editor empty">Select or add a slide to edit it.</div>
   }
@@ -9,19 +14,11 @@ function SlideEditor({ slide, onChange }) {
     onChange({ ...slide, [field]: value })
   }
 
-  function setFileTreeItem(i, value) {
-    const file_tree = [...slide.file_tree]
-    file_tree[i] = value
-    set('file_tree', file_tree)
-  }
-
-  function removeFileTreeItem(i) {
-    set('file_tree', slide.file_tree.filter((_, idx) => idx !== i))
-  }
-
   function setRectField(field, value) {
     set('rect', { ...slide.rect, [field]: Number(value) || 0 })
   }
+
+  const filePaths = slide.type === 'code' ? slide.file_tree.filter((p) => !p.endsWith('/')) : []
 
   return (
     <div className="slide-editor">
@@ -34,35 +31,32 @@ function SlideEditor({ slide, onChange }) {
         <>
           <label>
             Language
-            <input
-              type="text"
-              value={slide.language}
-              onChange={(e) => set('language', e.target.value)}
-            />
+            <select value={slide.language} onChange={(e) => set('language', e.target.value)}>
+              <option value="python">Python</option>
+            </select>
           </label>
           <label>
             Active file
-            <input
-              type="text"
-              value={slide.active_file}
-              onChange={(e) => set('active_file', e.target.value)}
-            />
+            <select value={slide.active_file} onChange={(e) => set('active_file', e.target.value)}>
+              <option value="">— none —</option>
+              {filePaths.map((p) => (
+                <option key={p} value={p}>
+                  {p}
+                </option>
+              ))}
+              {slide.active_file && !filePaths.includes(slide.active_file) && (
+                <option value={slide.active_file}>{slide.active_file} (not in tree)</option>
+              )}
+            </select>
           </label>
 
-          <div className="file-tree-editor">
-            <span>File tree</span>
-            {slide.file_tree.map((path, i) => (
-              <div key={i} className="file-tree-row">
-                <input type="text" value={path} onChange={(e) => setFileTreeItem(i, e.target.value)} />
-                <button type="button" onClick={() => removeFileTreeItem(i)} aria-label="Remove path">
-                  ×
-                </button>
-              </div>
-            ))}
-            <button type="button" onClick={() => set('file_tree', [...slide.file_tree, ''])}>
-              + Add path
-            </button>
-          </div>
+          <FileTreeEditor
+            key={slide._key}
+            fileTree={slide.file_tree}
+            onChange={(file_tree) => set('file_tree', file_tree)}
+            clipboard={clipboard}
+            onCopy={setClipboard}
+          />
 
           <label>
             Code
@@ -104,14 +98,6 @@ function SlideEditor({ slide, onChange }) {
               ))}
             </div>
           )}
-
-          <label>
-            Transition
-            <select value={slide.transition} onChange={(e) => set('transition', e.target.value)}>
-              <option value="fade">fade</option>
-              <option value="lerp_rect">lerp_rect</option>
-            </select>
-          </label>
         </>
       )}
     </div>

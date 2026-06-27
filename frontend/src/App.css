@@ -136,13 +136,28 @@
   gap: 6px;
 }
 
-.file-tree-row {
+.tree-toolbar {
   display: flex;
-  gap: 4px;
+  align-items: center;
+  gap: 6px;
 }
 
-.file-tree-row input {
+.tree-toolbar span {
+  margin-right: auto;
+  color: var(--text-h);
+  font-size: 13px;
+}
+
+.tree-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 0;
+}
+
+.tree-row input {
   flex: 1;
+  min-width: 0;
 }
 
 .rect-editor {

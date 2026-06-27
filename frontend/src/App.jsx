@@ -14,7 +14,7 @@ function newCodeSlide() {
     _key: crypto.randomUUID(),
     type: 'code',
     voice: '',
-    language: '',
+    language: 'python',
     active_file: '',
     file_tree: [],
     code: '',
@@ -28,7 +28,6 @@ function newImageSlide() {
     voice: '',
     src: '',
     rect: null,
-    transition: 'fade',
   }
 }
 
