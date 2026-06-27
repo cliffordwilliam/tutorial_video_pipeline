@@ -24,16 +24,144 @@
   border-bottom: 1px solid var(--border);
 }
 
-.editor {
+.main {
   flex: 1;
-  width: 100%;
+  display: flex;
+  min-height: 0;
+}
+
+.slide-list {
+  width: 220px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+.slide-list-actions {
+  display: flex;
+  gap: 4px;
+  padding: 8px;
+}
+
+.slide-list ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.slide-list li {
+  display: flex;
+  align-items: stretch;
+  border-bottom: 1px solid var(--border);
+}
+
+.slide-list li.selected {
+  background: var(--accent-bg);
+}
+
+.slide-row {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  text-align: left;
+  padding: 8px;
   border: none;
-  outline: none;
-  resize: none;
-  padding: 12px;
+  background: none;
+}
+
+.slide-type {
+  font-size: 11px;
+  text-transform: uppercase;
+  color: var(--text);
+}
+
+.slide-voice {
+  font-size: 13px;
+  color: var(--text-h);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 170px;
+}
+
+.slide-delete {
+  border: none;
+  background: none;
+  padding: 0 10px;
+}
+
+.slide-editor {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  overflow-y: auto;
+}
+
+.slide-editor.empty {
+  align-items: center;
+  justify-content: center;
+  color: var(--text);
+}
+
+.slide-editor label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--text-h);
+}
+
+.slide-editor input[type='text'],
+.slide-editor input[type='number'],
+.slide-editor select {
+  font-family: monospace;
+  padding: 6px 8px;
+}
+
+.checkbox-label {
+  flex-direction: row !important;
+  align-items: center;
+  gap: 8px !important;
+}
+
+.file-tree-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.file-tree-row {
+  display: flex;
+  gap: 4px;
+}
+
+.file-tree-row input {
+  flex: 1;
+}
+
+.rect-editor {
+  display: flex;
+  gap: 12px;
+}
+
+.rect-editor input {
+  width: 80px;
+}
+
+.code-textarea {
+  flex: 1;
+  min-height: 240px;
+  resize: vertical;
   font-family: monospace;
   font-size: 14px;
   line-height: 1.5;
+  padding: 8px;
 }
 
 .status-bar {

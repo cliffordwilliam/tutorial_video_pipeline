@@ -3,15 +3,22 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
+from models import Slide
+from parser import ScriptParseError, parse_script, serialize_script
+
 app = FastAPI()
+
+
+class SlidesResponse(BaseModel):
+    slides: list[Slide]
 
 
 class SaveRequest(BaseModel):
     path: str
-    content: str
+    slides: list[Slide]
 
 
-@app.get("/api/file")
+@app.get("/api/file", response_model=SlidesResponse)
 def read_file(path: str):
     if not path:
         raise HTTPException(status_code=400, detail="path is required")
@@ -23,7 +30,12 @@ def read_file(path: str):
     if file_path.is_dir():
         raise HTTPException(status_code=400, detail="path is a directory")
 
-    return {"content": file_path.read_text()}
+    try:
+        slides = parse_script(file_path.read_text())
+    except ScriptParseError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+    return {"slides": slides}
 
 
 @app.post("/api/file")
@@ -36,6 +48,6 @@ def write_file(req: SaveRequest):
         raise HTTPException(status_code=400, detail="path is a directory")
 
     file_path.parent.mkdir(parents=True, exist_ok=True)
-    file_path.write_text(req.content)
+    file_path.write_text(serialize_script(req.slides))
 
     return {"ok": True}

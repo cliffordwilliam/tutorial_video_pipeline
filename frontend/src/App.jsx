@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import './App.css'
+import SlideList from './SlideList'
+import SlideEditor from './SlideEditor'
 
 function titleFromPath(path) {
   const base = path.split('/').pop() || ''
@@ -7,9 +9,33 @@ function titleFromPath(path) {
   return dot > 0 ? base.slice(0, dot) : base
 }
 
+function newCodeSlide() {
+  return {
+    _key: crypto.randomUUID(),
+    type: 'code',
+    voice: '',
+    language: '',
+    active_file: '',
+    file_tree: [],
+    code: '',
+  }
+}
+
+function newImageSlide() {
+  return {
+    _key: crypto.randomUUID(),
+    type: 'image',
+    voice: '',
+    src: '',
+    rect: null,
+    transition: 'fade',
+  }
+}
+
 function App() {
   const [path, setPath] = useState('')
-  const [content, setContent] = useState('')
+  const [slides, setSlides] = useState([])
+  const [selectedIndex, setSelectedIndex] = useState(null)
   const [status, setStatus] = useState('')
 
   const title = titleFromPath(path)
@@ -23,7 +49,9 @@ function App() {
         setStatus(data.detail || 'Failed to open')
         return
       }
-      setContent(data.content)
+      const slidesWithKeys = data.slides.map((s) => ({ ...s, _key: crypto.randomUUID() }))
+      setSlides(slidesWithKeys)
+      setSelectedIndex(slidesWithKeys.length ? 0 : null)
       setStatus('Opened')
     } catch (err) {
       setStatus(`Failed to open: ${err.message}`)
@@ -36,7 +64,10 @@ function App() {
       const res = await fetch('/api/file', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ path, content }),
+        body: JSON.stringify({
+          path,
+          slides: slides.map(({ _key, ...rest }) => rest),
+        }),
       })
       const data = await res.json()
       if (!res.ok) {
@@ -47,6 +78,25 @@ function App() {
     } catch (err) {
       setStatus(`Failed to save: ${err.message}`)
     }
+  }
+
+  function addSlide(slide) {
+    setSlides((prev) => {
+      setSelectedIndex(prev.length)
+      return [...prev, slide]
+    })
+  }
+
+  function deleteSlide(i) {
+    setSlides((prev) => prev.filter((_, idx) => idx !== i))
+    setSelectedIndex((prev) => {
+      if (prev === null || i === prev) return null
+      return i < prev ? prev - 1 : prev
+    })
+  }
+
+  function updateSelectedSlide(updated) {
+    setSlides((prev) => prev.map((s, idx) => (idx === selectedIndex ? updated : s)))
   }
 
   return (
@@ -69,13 +119,20 @@ function App() {
 
       <div className="title-bar">{title ? `Title: ${title}` : 'No file open'}</div>
 
-      <textarea
-        className="editor"
-        value={content}
-        onChange={(e) => setContent(e.target.value)}
-        placeholder="Content goes here..."
-        spellCheck={false}
-      />
+      <div className="main">
+        <SlideList
+          slides={slides}
+          selectedIndex={selectedIndex}
+          onSelect={setSelectedIndex}
+          onAddCode={() => addSlide(newCodeSlide())}
+          onAddImage={() => addSlide(newImageSlide())}
+          onDelete={deleteSlide}
+        />
+        <SlideEditor
+          slide={selectedIndex !== null ? slides[selectedIndex] : null}
+          onChange={updateSelectedSlide}
+        />
+      </div>
 
       <div className="status-bar">{status}</div>
     </div>
