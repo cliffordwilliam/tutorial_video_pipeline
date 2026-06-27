@@ -1,0 +1,45 @@
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+.toolbar {
+  display: flex;
+  gap: 8px;
+  padding: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.path-input {
+  flex: 1;
+  font-family: monospace;
+  padding: 6px 8px;
+}
+
+.title-bar {
+  padding: 4px 8px;
+  font-size: 13px;
+  color: var(--text-h);
+  border-bottom: 1px solid var(--border);
+}
+
+.editor {
+  flex: 1;
+  width: 100%;
+  border: none;
+  outline: none;
+  resize: none;
+  padding: 12px;
+  font-family: monospace;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.status-bar {
+  padding: 4px 8px;
+  font-size: 12px;
+  color: var(--text-h);
+  border-top: 1px solid var(--border);
+  min-height: 1.4em;
+}
