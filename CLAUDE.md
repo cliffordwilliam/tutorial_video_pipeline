@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project overview
 
-A local-only tool for authoring and rendering programming-tutorial videos from a YAML slide script. The full intended system is described in `tutorial_video_pipeline_spec.md` at the repo root — read it for the complete feature set (Pillow renderer, Pygments/Shiki syntax highlighting, Piper/ElevenLabs TTS, FFmpeg muxing, full web authoring tool). **Only a slice of that spec is implemented so far**: the slide CRUD editor (`backend/` + `frontend/`). There is no renderer, no audio, no transitions, and no video export yet.
+A local-only tool for authoring and rendering programming-tutorial videos from a YAML slide script. The full intended system is described in `tutorial_video_pipeline_spec.md` at the repo root — read it for the complete feature set (Pillow renderer, Pygments/Shiki syntax highlighting, Piper/ElevenLabs TTS, FFmpeg muxing, full web authoring tool). **Only a slice of that spec is implemented so far**: the slide CRUD editor (`backend/` + `frontend/`), plus pure backend logic for transition *selection* (`backend/transitions.py` - which transition type applies between two slides, derived automatically, never authored). There is no actual rendering, no audio, and no video export yet.
 
 ## Commands
 
@@ -65,3 +65,7 @@ docker run --rm --network host -v "<script_dir>:/scripts" -w /scripts \
 ```
 
 `--network host` only works this simply on Linux. The image bundles browser binaries but not the `playwright` pip package itself — install it at runtime, pinned to match the image tag's version (`v1.49.0-noble` → `playwright==1.49.0`).
+
+### Verifying changes against upstream docs
+
+Before considering a change to this repo done, check it against locally-vendored copies of the relevant upstream framework/library docs, if any happen to be available on the machine you're working on (e.g. a cloned copy of a library's own repo). This has already caught real issues here (an unnecessary `useMemo`, an unsafe array-index React key) that plain code review missed. Not every dependency will have a local clone available - if none exists for a given library, say so explicitly rather than skipping the check silently.
