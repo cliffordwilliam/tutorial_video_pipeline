@@ -1,9 +1,19 @@
 import { useState } from 'react'
+import FileBrowser from './FileBrowser'
 import FileTreeEditor from './FileTreeEditor'
 import ImageRectEditor from './ImageRectEditor'
 
+function relativePath(base, target) {
+  const baseParts = base.split('/').filter(Boolean)
+  const targetParts = target.split('/').filter(Boolean)
+  let i = 0
+  while (i < baseParts.length && i < targetParts.length && baseParts[i] === targetParts[i]) i++
+  return [...Array(baseParts.length - i).fill('..'), ...targetParts.slice(i)].join('/')
+}
+
 function SlideEditor({ slide, onChange, scriptPath }) {
   const [clipboard, setClipboard] = useState(null)
+  const [showImageBrowser, setShowImageBrowser] = useState(false)
 
   if (!slide) {
     return <div className="slide-editor empty">Select or add a slide to edit it.</div>
@@ -67,8 +77,25 @@ function SlideEditor({ slide, onChange, scriptPath }) {
         <>
           <label>
             Image src
-            <input type="text" value={slide.src} onChange={(e) => set('src', e.target.value)} />
+            <div className="image-src-row">
+              <span className="image-src-value">{slide.src || 'No image selected'}</span>
+              <button type="button" onClick={() => setShowImageBrowser(true)} disabled={!scriptPath}>
+                Browse…
+              </button>
+            </div>
           </label>
+
+          {showImageBrowser && (
+            <FileBrowser
+              startPath={scriptPath.slice(0, scriptPath.lastIndexOf('/'))}
+              extensions="png,jpg,jpeg,gif,webp,bmp"
+              onSelect={(p) => {
+                set('src', relativePath(scriptPath.slice(0, scriptPath.lastIndexOf('/')), p))
+                setShowImageBrowser(false)
+              }}
+              onClose={() => setShowImageBrowser(false)}
+            />
+          )}
 
           {slide.src && (
             <ImageRectEditor

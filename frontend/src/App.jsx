@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import './App.css'
+import FileBrowser from './FileBrowser'
 import SlideList from './SlideList'
 import SlideEditor from './SlideEditor'
 
@@ -37,13 +38,14 @@ function App() {
   const [selectedIndex, setSelectedIndex] = useState(null)
   const [status, setStatus] = useState('')
   const [rendering, setRendering] = useState(false)
+  const [showBrowser, setShowBrowser] = useState(false)
 
   const title = titleFromPath(path)
 
-  async function handleOpen() {
+  async function handleOpen(targetPath) {
     setStatus('Opening...')
     try {
-      const res = await fetch(`/api/file?path=${encodeURIComponent(path)}`)
+      const res = await fetch(`/api/file?path=${encodeURIComponent(targetPath)}`)
       const data = await res.json()
       if (!res.ok) {
         setStatus(data.detail || 'Failed to open')
@@ -141,15 +143,9 @@ function App() {
   return (
     <div className="app">
       <div className="toolbar">
-        <input
-          className="path-input"
-          type="text"
-          placeholder="/path/to/project.yaml"
-          value={path}
-          onChange={(e) => setPath(e.target.value)}
-        />
-        <button type="button" onClick={handleOpen} disabled={!path}>
-          Open
+        <span className="path-display">{path || 'No file selected'}</span>
+        <button type="button" onClick={() => setShowBrowser(true)}>
+          Browse…
         </button>
         <button type="button" onClick={handleSave} disabled={!path}>
           Save
@@ -158,6 +154,19 @@ function App() {
           {rendering ? 'Rendering…' : 'Render'}
         </button>
       </div>
+
+      {showBrowser && (
+        <FileBrowser
+          startPath={path ? path.slice(0, path.lastIndexOf('/')) : ''}
+          extensions="yaml,yml"
+          onSelect={(p) => {
+            setPath(p)
+            setShowBrowser(false)
+            handleOpen(p)
+          }}
+          onClose={() => setShowBrowser(false)}
+        />
+      )}
 
       <div className="title-bar">{title ? `Title: ${title}` : 'No file open'}</div>
 

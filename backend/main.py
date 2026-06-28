@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Literal
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
@@ -23,6 +24,16 @@ class SaveRequest(BaseModel):
 
 class RenderRequest(BaseModel):
     path: str
+
+
+class BrowseEntry(BaseModel):
+    name: str
+    type: Literal["dir", "file"]
+
+
+class BrowseResponse(BaseModel):
+    path: str
+    entries: list[BrowseEntry]
 
 
 @app.get("/api/file", response_model=SlidesResponse)
@@ -72,6 +83,34 @@ def read_image(path: str):
         raise HTTPException(status_code=400, detail="path is a directory")
 
     return FileResponse(file_path)
+
+
+@app.get("/api/browse", response_model=BrowseResponse)
+def browse(path: str | None = None, extensions: str | None = None):
+    dir_path = Path(path) if path else Path.home()
+    if not dir_path.exists():
+        raise HTTPException(status_code=404, detail="Directory not found")
+    if not dir_path.is_dir():
+        raise HTTPException(status_code=400, detail="path is not a directory")
+
+    ext_filter = {e.strip().lower().lstrip(".") for e in (extensions or "").split(",") if e.strip()}
+
+    entries = []
+    try:
+        for entry in sorted(dir_path.iterdir(), key=lambda p: (not p.is_dir(), p.name.lower())):
+            if entry.name.startswith("."):
+                continue
+            try:
+                if entry.is_dir():
+                    entries.append({"name": entry.name, "type": "dir"})
+                elif not ext_filter or entry.suffix.lower().lstrip(".") in ext_filter:
+                    entries.append({"name": entry.name, "type": "file"})
+            except OSError:
+                continue  # broken symlink etc - skip rather than fail the whole listing
+    except PermissionError:
+        raise HTTPException(status_code=403, detail="Permission denied")
+
+    return {"path": str(dir_path), "entries": entries}
 
 
 @app.post("/api/render")
