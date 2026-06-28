@@ -31,12 +31,22 @@ cleanup() {
 
 trap cleanup SIGINT SIGTERM
 
+ENV_FILE_ARGS=()
+if [[ -f "$ROOT_DIR/backend/.env" ]]; then
+  ENV_FILE_ARGS=(--env-file "$ROOT_DIR/backend/.env")
+fi
+
+# The "${ENV_FILE_ARGS[@]+"${ENV_FILE_ARGS[@]}"}" form below (not plain
+# "${ENV_FILE_ARGS[@]}") matters: bash before 4.3 treats expanding an *empty* array
+# under `set -u` as an unbound-variable error - exactly the no-.env case, which is
+# the common one. macOS still ships bash 3.2 by default.
 docker run \
   --name "$CONTAINER_NAME" \
   --rm \
   --user "$(id -u):$(id -g)" \
   -p "${PORT}:8080" \
   -v "$MOUNT_DIR:$MOUNT_DIR" \
+  "${ENV_FILE_ARGS[@]+"${ENV_FILE_ARGS[@]}"}" \
   "$IMAGE" &
 
 DOCKER_PID=$!

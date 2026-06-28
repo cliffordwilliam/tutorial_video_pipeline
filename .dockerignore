@@ -1,5 +1,6 @@
 backend/.venv/
 backend/assets/voices/
+backend/.env
 **/__pycache__/
 *.pyc
 

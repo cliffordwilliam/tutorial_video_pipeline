@@ -3,6 +3,7 @@ backend/.venv/
 **/__pycache__/
 *.pyc
 backend/assets/voices/
+backend/.env
 
 # Node
 frontend/node_modules/

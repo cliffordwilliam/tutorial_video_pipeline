@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 from typing import Literal
 
@@ -111,6 +112,15 @@ def browse(path: str | None = None, extensions: str | None = None):
         raise HTTPException(status_code=403, detail="Permission denied")
 
     return {"path": str(dir_path), "entries": entries}
+
+
+@app.get("/api/tts-status")
+def tts_status():
+    backend = os.environ.get("TTS_BACKEND", "piper")
+    if backend == "elevenlabs":
+        configured = bool(os.environ.get("ELEVENLABS_API_KEY")) and bool(os.environ.get("ELEVENLABS_VOICE_ID"))
+        return {"backend": "elevenlabs", "configured": configured}
+    return {"backend": "piper", "configured": True}
 
 
 @app.post("/api/render")

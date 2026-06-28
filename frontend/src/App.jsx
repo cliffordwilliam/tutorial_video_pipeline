@@ -1,8 +1,18 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import './App.css'
 import FileBrowser from './FileBrowser'
 import SlideList from './SlideList'
 import SlideEditor from './SlideEditor'
+
+function ttsStatusDisplay(ttsStatus) {
+  if (!ttsStatus) return null
+  if (ttsStatus.backend === 'elevenlabs') {
+    return ttsStatus.configured
+      ? { text: '🔊 ElevenLabs (uses API credits)', className: 'tts-status-elevenlabs' }
+      : { text: '⚠️ ElevenLabs not configured', className: 'tts-status-warning' }
+  }
+  return { text: '🔊 Piper', className: 'tts-status-piper' }
+}
 
 function titleFromPath(path) {
   const base = path.split('/').pop() || ''
@@ -39,8 +49,18 @@ function App() {
   const [status, setStatus] = useState('')
   const [rendering, setRendering] = useState(false)
   const [showBrowser, setShowBrowser] = useState(false)
+  const [ttsStatus, setTtsStatus] = useState(null)
 
   const title = titleFromPath(path)
+  const ttsDisplay = ttsStatusDisplay(ttsStatus)
+  const ttsBlocked = ttsStatus?.backend === 'elevenlabs' && !ttsStatus.configured
+
+  useEffect(() => {
+    fetch('/api/tts-status')
+      .then((res) => res.json())
+      .then(setTtsStatus)
+      .catch(() => setTtsStatus(null))
+  }, [])
 
   async function handleOpen(targetPath) {
     setStatus('Opening...')
@@ -150,7 +170,8 @@ function App() {
         <button type="button" onClick={handleSave} disabled={!path}>
           Save
         </button>
-        <button type="button" onClick={handleRender} disabled={!path || rendering}>
+        {ttsDisplay && <span className={`tts-status ${ttsDisplay.className}`}>{ttsDisplay.text}</span>}
+        <button type="button" onClick={handleRender} disabled={!path || rendering || ttsBlocked}>
           {rendering ? 'Rendering…' : 'Render'}
         </button>
       </div>

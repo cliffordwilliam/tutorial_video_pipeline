@@ -42,10 +42,10 @@ def _render_transition_segment(transition, prev, slide, script_dir, path) -> Non
     render_segment(iter(frame_list), duration, path)
 
 
-def _render_slide_segment(slide, script_dir, path, voice_wav_path) -> None:
+def _render_slide_segment(slide, script_dir, path, voice_base_path) -> None:
     if slide.voice.strip():
-        duration = synthesize(slide.voice, voice_wav_path)
-        audio_path = voice_wav_path
+        result = synthesize(slide.voice, voice_base_path)
+        duration, audio_path = result.duration, result.path
     else:
         duration = DEFAULT_HOLD_SECONDS
         audio_path = None
@@ -75,8 +75,8 @@ def render_script(script_path: Path, output_path: Path) -> None:
                 segment_paths.append(trans_path)
 
             slide_path = tmp / f"segment_{len(segment_paths):04d}.mkv"
-            voice_wav_path = tmp / f"voice_{i:04d}.wav"
-            _render_slide_segment(slide, script_dir, slide_path, voice_wav_path)
+            voice_base_path = tmp / f"voice_{i:04d}"
+            _render_slide_segment(slide, script_dir, slide_path, voice_base_path)
             segment_paths.append(slide_path)
 
         mux_segments(segment_paths, output_path)

@@ -22,6 +22,29 @@
   color: var(--text-h);
 }
 
+.tts-status {
+  display: flex;
+  align-items: center;
+  padding: 6px 10px;
+  font-size: 13px;
+  white-space: nowrap;
+  border-radius: 4px;
+}
+
+.tts-status-piper {
+  color: var(--text-h);
+}
+
+.tts-status-elevenlabs {
+  color: #92400e;
+  background: #fef3c7;
+}
+
+.tts-status-warning {
+  color: #fff;
+  background: #dc2626;
+}
+
 .title-bar {
   padding: 4px 8px;
   font-size: 13px;
