@@ -15,6 +15,8 @@ CHARS_PER_SECOND = 80  # spec's stated default; "configurable" is explicitly Pha
 CURSOR_BLINK_SECONDS = 0.25
 FADE_SECONDS = 0.3  # spec's exact number, both phases
 LERP_RECT_SECONDS = 0.5  # spec's exact number
+FILE_SWITCH_SECONDS = 0.3  # quick UI cross-fade, not a scene transition
+RECT_FADE_SECONDS = 0.3
 
 
 def ease_in_out_cubic(t: float) -> float:
@@ -32,6 +34,28 @@ def render_scroll_transition(slide: CodeSlide, from_viewport: float, to_viewport
         t = ease_in_out_cubic(i / (frame_count - 1)) if frame_count > 1 else 1.0
         viewport_top = from_viewport + (to_viewport - from_viewport) * t
         yield render_code_slide(slide, viewport_top=viewport_top)
+
+
+def render_file_switch_transition(prev: CodeSlide, current: CodeSlide) -> Iterator[Image.Image]:
+    """The code pane cuts instantly to current's content (real editors don't animate
+    this); only the sidebar's highlighted row cross-fades from prev.active_file to
+    current.active_file. Both blended frames use current's own code/file_tree/viewport
+    and differ only in which file is passed as active_file, so blending them only
+    visibly affects the highlight band - no special-cased drawing needed. If
+    prev.active_file isn't even in current.file_tree (e.g. renamed away), the first
+    frame simply has nothing highlighted, degrading to a clean fade-in."""
+    current_code, viewport_top, highlighted = strip_markers(current.code, current.language)
+    frame_old_highlight = render_code_frame(
+        current_code, current.language, current.file_tree, prev.active_file, viewport_top, set(highlighted)
+    )
+    frame_new_highlight = render_code_frame(
+        current_code, current.language, current.file_tree, current.active_file, viewport_top, set(highlighted)
+    )
+    frame_count = round(FILE_SWITCH_SECONDS * FPS)
+
+    for i in range(frame_count):
+        t = i / (frame_count - 1) if frame_count > 1 else 1.0
+        yield Image.blend(frame_old_highlight, frame_new_highlight, t)
 
 
 def _diff_steps(prev: str, current: str) -> list[tuple[str, int]]:
@@ -125,9 +149,9 @@ def render_fade_transition(prev: Slide, current: Slide, script_dir: Path) -> Ite
 def render_lerp_rect_transition(
     slide: ImageSlide, from_rect: Rect, to_rect: Rect, script_dir: Path
 ) -> Iterator[Image.Image]:
-    """Same image (same src) - only the rect's position/size animates. Golden path:
-    assumes both from_rect/to_rect are set (an author leaving one None mid-transition
-    isn't addressed by the spec's "lerp the rectangle position and size" either)."""
+    """Same image (same src), both rects already set and different - only the rect's
+    position/size animates. A rect appearing/disappearing (one side None) is a
+    separate case, resolved to rect_fade instead - see render_rect_fade_transition."""
     image_path = script_dir / slide.src
     frame_count = round(LERP_RECT_SECONDS * FPS)
 
@@ -140,3 +164,22 @@ def render_lerp_rect_transition(
             from_rect.h + (to_rect.h - from_rect.h) * t,
         )
         yield render_image_frame(image_path, rect)
+
+
+def render_rect_fade_transition(
+    slide: ImageSlide, from_rect: Rect | None, to_rect: Rect | None, script_dir: Path
+) -> Iterator[Image.Image]:
+    """Same image, a rect appearing (to_rect set, from_rect None) or disappearing
+    (the reverse) - exactly one is None, resolved by transitions.py. The rect's
+    position/size is fixed throughout; only its visibility fades. Linear alpha, not
+    eased - matches the rule that fades stay linear while positional motion eases."""
+    image_path = script_dir / slide.src
+    rect = to_rect or from_rect
+    frame_without = render_image_frame(image_path, rect=None)
+    frame_with = render_image_frame(image_path, rect=(rect.x, rect.y, rect.w, rect.h))
+    frame_count = round(RECT_FADE_SECONDS * FPS)
+
+    for i in range(frame_count):
+        alpha = i / (frame_count - 1) if frame_count > 1 else 1.0
+        start, end = (frame_without, frame_with) if to_rect else (frame_with, frame_without)
+        yield Image.blend(start, end, alpha)

@@ -67,7 +67,12 @@ def render_segment(
 
 
 def _run_ffmpeg(args: list[str]) -> None:
-    result = subprocess.run(["ffmpeg", "-y", *args], capture_output=True)
+    # stdin explicitly closed off (not just uncaptured) - left to inherit the
+    # parent's stdin, ffmpeg's default attempt to read interactive keyboard
+    # commands (e.g. 'q' to quit) gets it SIGTTIN'd into a permanent stop the
+    # moment it's running in a background process group with a real terminal
+    # as stdin, e.g. uvicorn started via dev.sh's `&` backgrounding.
+    result = subprocess.run(["ffmpeg", "-y", *args], stdin=subprocess.DEVNULL, capture_output=True)
     if result.returncode != 0:
         raise RuntimeError(f"ffmpeg failed: {result.stderr.decode()}")
 
