@@ -2,11 +2,8 @@ import math
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
-from pygments import lex
-from pygments.lexers import PythonLexer
-from pygments.style import Style
-from pygments.token import Token
 
+from highlight import supported, token_color, tokenize
 from markers import strip_markers
 from models import CodeSlide, ImageSlide, Slide
 
@@ -38,30 +35,6 @@ FONT_PATH = Path(__file__).parent / "assets" / "fonts" / "JetBrainsMono-Regular.
 _code_font = ImageFont.truetype(str(FONT_PATH), CODE_FONT_SIZE)
 _ui_font = ImageFont.truetype(str(FONT_PATH), UI_FONT_SIZE)
 _char_width = _code_font.getlength("M")  # true monospace: every character has this advance
-
-LEXERS = {
-    "python": PythonLexer(),
-    "py": PythonLexer(),
-}
-
-
-class VSCodeDarkPlusStyle(Style):
-    # Pillow only has the Regular weight loaded, so no bold/italic modifiers here -
-    # they'd be silently ignored anyway without a matching font variant.
-    styles = {
-        Token.Keyword: "#569cd6",
-        Token.Keyword.Constant: "#569cd6",
-        Token.Keyword.Declaration: "#569cd6",
-        Token.Name.Function: "#dcdcaa",
-        Token.Name.Class: "#4ec9b0",
-        Token.Name.Builtin: "#569cd6",
-        Token.String: "#ce9178",
-        Token.Comment: "#6a9955",
-        Token.Number: "#b5cea8",
-        Token.Operator: COLOR_DEFAULT_TEXT,
-        Token.Punctuation: COLOR_DEFAULT_TEXT,
-        Token.Text: COLOR_DEFAULT_TEXT,
-    }
 
 
 def _draw_file_tree(draw: ImageDraw.ImageDraw, file_tree: list[str], active_file: str) -> None:
@@ -100,13 +73,12 @@ def _draw_code(
             y = (line_idx - viewport_top) * LINE_HEIGHT
             draw.rectangle([CODE_AREA_X, y, FRAME_WIDTH, y + LINE_HEIGHT], fill=COLOR_HIGHLIGHT_BG)
 
-    # Lex the whole code in one pass (not line-by-line) so multi-line constructs
+    # Tokenize the whole code in one pass (not line-by-line) so multi-line constructs
     # like triple-quoted strings keep correct token state across line breaks.
     line_idx = 0
     x = CODE_AREA_X + 8
-    for token_type, text in lex(stripped_code, LEXERS[language]):
-        color_hex = VSCodeDarkPlusStyle.style_for_token(token_type)["color"]
-        color = f"#{color_hex}" if color_hex else COLOR_DEFAULT_TEXT
+    for label, text in tokenize(stripped_code, language):
+        color = token_color(label)
 
         parts = text.split("\n")
         for part_idx, part in enumerate(parts):
@@ -139,7 +111,7 @@ def render_code_frame(
     cursor: tuple[int, int] | None = None,
 ) -> Image.Image:
     """Draws one frame from fully-resolved data - no marker stripping, no defaults."""
-    if language not in LEXERS:
+    if not supported(language):
         raise ValueError(f"no lexer configured for language {language!r}")
 
     total_lines = code.count("\n") + 1

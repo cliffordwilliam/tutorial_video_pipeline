@@ -6,7 +6,8 @@ dependencies = [
     "fastapi>=0.138.1",
     "pillow>=12.2.0",
     "piper-tts>=1.4.2",
-    "pygments>=2.20.0",
     "pyyaml>=6.0.3",
+    "tree-sitter>=0.22",
+    "tree-sitter-python>=0.25.0",
     "uvicorn[standard]>=0.49.0",
 ]
