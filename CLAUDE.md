@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project overview
 
-A local-only tool for authoring and rendering programming-tutorial videos from a YAML slide script. The full intended system is described in `tutorial_video_pipeline_spec.md` at the repo root — read it for the complete feature set (Pillow renderer, Pygments/Shiki syntax highlighting, Piper/ElevenLabs TTS, FFmpeg muxing, full web authoring tool). **Only a slice of that spec is implemented so far**: the slide CRUD editor (`backend/` + `frontend/`), plus pure backend logic for transition *selection* (`backend/transitions.py` - which transition type applies between two slides, derived automatically, never authored). There is no actual rendering, no audio, and no video export yet.
+A local-only tool for authoring and rendering programming-tutorial videos from a YAML slide script. The full intended system is described in `tutorial_video_pipeline_spec.md` at the repo root — read it for the complete feature set (the web authoring tool, Phase 2/3 items like Shiki and ElevenLabs). **What's built so far**: the slide CRUD editor (`backend/` + `frontend/`); transition *selection* (`backend/transitions.py` — which of the four transition types applies between two slides, derived automatically, never authored); the Pillow renderer for both slide types and all four transitions (`backend/render.py`, `backend/transition_render.py`); FFmpeg segment encoding/muxing (`backend/video.py`); Piper TTS (`backend/tts.py`, no caching yet — see "Rendering pipeline" below). **Not built yet**: a real "render the whole script" orchestrator tying slides → segments → final video together, image-preview/canvas-annotation UI, and all API/FE wiring beyond the single-frame code preview (`POST /api/preview/frame`).
 
 ## Commands
 
@@ -32,6 +32,12 @@ cd backend && uv add <package>      # not pip
 cd frontend && bun add <package>    # not npm — Node itself isn't installed in this project's dev environment
 ```
 
+One-time setup for audio (Piper's voice model isn't bundled with the `piper-tts` package, and isn't committed to this repo — same reasoning as not committing `node_modules`/`.venv`):
+```bash
+cd backend && uv run python -m piper.download_voices en_US-lessac-low --download-dir assets/voices
+```
+`ffmpeg`/`ffprobe` must also be installed on the host (`apt install ffmpeg` on Ubuntu) — there's no bundled/vendored binary.
+
 Tests: there is no automated test suite in this repo, by deliberate choice. Verify backend logic with one-off `uv run python -c "..."` snippets or `curl` against the running server. Verify the frontend visually — see "Verifying UI changes" below.
 
 ## Architecture
@@ -41,8 +47,18 @@ Tests: there is no automated test suite in this repo, by deliberate choice. Veri
 This is the central design decision, and the reason `backend/parser.py` exists. The on-disk script file keeps the spec's YAML format with inline `@viewport`/`@highlight` markers — chosen because it's git-diffable and hand-editable, and because moving marker positions out of the text into separate fields (e.g. a `highlighted_lines` array) would create a class of bugs where line numbers silently desync from edits. The HTTP API, however, speaks plain structured JSON, validated via Pydantic discriminated unions.
 
 - `backend/models.py` — `CodeSlide`, `ImageSlide`, and `Slide = Annotated[Union[CodeSlide, ImageSlide], Field(discriminator="type")]`. This is the wire/validation shape.
-- `backend/parser.py` — the only place that translates between the two formats: `parse_script(text) -> list[Slide]` and `serialize_script(slides) -> text`. `split_blocks()` handles splitting the script on `---`-delimited frontmatter/body pairs.
-- Marker-stripping (turning `@viewport`/`@highlight` into line positions a renderer could use) is **not implemented yet** — the `code` field carries marker text through verbatim. That logic belongs to a future renderer milestone, not this layer, since nothing consumes it yet.
+- `backend/parser.py` — the only place that translates between the two formats: `parse_script(text) -> list[Slide]` and `serialize_script(slides) -> text`. `split_blocks()` handles splitting the script on `---`-delimited frontmatter/body pairs. `parser.py` itself never strips `@viewport`/`@highlight` — that's a render-time concern (see below), so `code` carries marker text through verbatim at this layer.
+
+### Rendering pipeline
+
+Each piece below was added once (and only once) something actually needed it - e.g. marker-stripping didn't exist until the renderer needed it; `render_image_frame`/`render_code_frame` (raw, marker/Rect-model-free primitives) didn't exist until transitions needed to draw at interpolated in-between positions a real `Rect`/marker-resolved slide can't express.
+
+- `backend/markers.py` — `strip_markers(code, language) -> (stripped_code, viewport_top, highlighted_lines)`. Render-time only; never touched by `parser.py`.
+- `backend/render.py` — `render_code_slide`/`render_image_slide` (take a `Slide`, resolve its markers/`Rect` internally) wrap lower-level `render_code_frame`/`render_image_frame` (fully-resolved data only - no marker stripping, rect as a raw `(x, y, w, h)` tuple instead of the strict-`int` `Rect` model). `render_slide` dispatches between the two by slide type.
+- `backend/transitions.py` — `resolve_transition(prev, current)` decides which of the spec's four transition types applies, purely from slide data (never authored). File Switch resolves but has no corresponding render function - real editors cut instantly, and `render_code_slide` already highlights `active_file` in the sidebar, so an instant cut needs no animation code at all.
+- `backend/transition_render.py` — one frame-sequence generator per transition type that *does* animate (`render_scroll_transition`, `render_text_diff_transition`, `render_fade_transition`, `render_lerp_rect_transition`). 60fps (not the spec's stated 30 - deliberate). Motion (scroll, lerp_rect) eases via `ease_in_out_cubic`; fades stay linear (a plain cross-dissolve); Text Diff is golden-path only (no viewport lerp - assumes the edited region stays in view).
+- `backend/video.py` — `render_segment` encodes a frame sequence (+ optional real audio) to an intermediate `.mkv`; `mux_segments` concatenates segments into the final `output.mp4`. Two lessons from `/home/clif/repositories/ttv` and `/home/clif/repositories/doki-doki-coding-club` (both independently solved PTS-discontinuity/drift bugs at concat boundaries) are applied together: pad each segment's audio to exactly match its video duration, and use PCM (not AAC) for intermediate segments, encoding to AAC exactly once on the final output. **Subprocess gotcha**: writing frames to ffmpeg's stdin in a loop while also capturing stdout/stderr via `PIPE` can deadlock once progress output fills the OS pipe buffer - fixed by redirecting stderr to a temp file instead (no pipe buffer limit, no thread coordination needed).
+- `backend/tts.py` — `synthesize(text, output_path) -> duration`, a thin wrapper around the `piper` CLI (stdin in, WAV out), duration read via the stdlib `wave` module. No caching yet, despite the spec's `sha256(text+model)` design - deferred deliberately, matching how both reference repos actually work in practice.
 
 ### The backend is storage-agnostic — no project/file management
 
