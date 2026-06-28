@@ -28,8 +28,11 @@ COLOR_DEFAULT_TEXT = "#d4d4d4"
 COLOR_HIGHLIGHT_BG = "#264f78"  # also reused below for the active-file sidebar row -
 # the spec's color table doesn't define one, and reusing the "highlighted" color keeps
 # a single consistent visual meaning rather than inventing an unspecified new color.
-COLOR_RECT_BORDER = "#ff0000"
+COLOR_RECT_BORDER = "#ffff00"  # was red - perceived luminance too low to contrast
+# against the dimmed background (see RECT_DIM_AMOUNT); yellow is the conventional
+# spotlight/highlight choice and stays visible regardless of the image's own colors.
 RECT_BORDER_WIDTH = 2
+RECT_DIM_AMOUNT = 0.6  # judgment call - how much everything outside the rect darkens
 
 FONT_PATH = Path(__file__).parent / "assets" / "fonts" / "JetBrainsMono-Regular.ttf"
 _code_font = ImageFont.truetype(str(FONT_PATH), CODE_FONT_SIZE)
@@ -200,6 +203,16 @@ def render_image_frame(image_path: Path, rect: tuple[float, float, float, float]
         y0 = offset_y + y * scale
         x1 = offset_x + (x + w) * scale
         y1 = offset_y + (y + h) * scale
+
+        # Dim everything outside the rect to draw the eye to its contents - paste the
+        # original, undimmed crop of just the rect region back on top of a darkened
+        # copy of the whole frame. crop()/paste() need integer coordinates, unlike
+        # draw.rectangle() below, which already tolerates floats.
+        crop_box = (round(x0), round(y0), round(x1), round(y1))
+        dimmed = Image.blend(frame, Image.new("RGB", frame.size, (0, 0, 0)), RECT_DIM_AMOUNT)
+        dimmed.paste(frame.crop(crop_box), crop_box)
+        frame = dimmed
+
         draw = ImageDraw.Draw(frame)
         draw.rectangle([x0, y0, x1, y1], outline=COLOR_RECT_BORDER, width=RECT_BORDER_WIDTH)
 
