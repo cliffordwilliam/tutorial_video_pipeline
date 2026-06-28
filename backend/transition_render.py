@@ -1,13 +1,17 @@
 from collections.abc import Iterator
+from difflib import SequenceMatcher
 
 from PIL import Image
 
+from markers import strip_markers
 from models import CodeSlide
-from render import render_code_slide
+from render import render_code_frame, render_code_slide
 
 FPS = 60
 SCROLL_SECONDS_PER_LINE = 0.1  # judgment call - spec says "proportional to distance", no exact rate given
 MAX_SCROLL_DURATION = 1.5  # spec's stated cap
+CHARS_PER_SECOND = 80  # spec's stated default; "configurable" is explicitly Phase 3, not now
+CURSOR_BLINK_SECONDS = 0.25
 
 
 def ease_in_out_cubic(t: float) -> float:
@@ -25,3 +29,74 @@ def render_scroll_transition(slide: CodeSlide, from_viewport: float, to_viewport
         t = ease_in_out_cubic(i / (frame_count - 1)) if frame_count > 1 else 1.0
         viewport_top = from_viewport + (to_viewport - from_viewport) * t
         yield render_code_slide(slide, viewport_top=viewport_top)
+
+
+def _diff_steps(prev: str, current: str) -> list[tuple[str, int]]:
+    """One entry per character edit: backspaces deleted/replaced segments from
+    their right edge, then types inserted/replaced segments left to right."""
+    # autojunk's "popular elements are junk" heuristic is meant for line-level diffing
+    # of text files (excluding boilerplate-like blank/repeated lines); for character-
+    # level diffing of code, repeated whitespace/indentation is meaningful and
+    # shouldn't be excluded from matching, so it's disabled here.
+    matcher = SequenceMatcher(None, prev, current, autojunk=False)
+    state = list(prev)
+    pos = 0
+    steps: list[tuple[str, int]] = []
+
+    for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+        if tag == "equal":
+            pos += i2 - i1
+            continue
+
+        if tag in ("delete", "replace"):
+            cursor = pos + (i2 - i1)
+            for _ in range(i2 - i1):
+                cursor -= 1
+                del state[cursor]
+                steps.append(("".join(state), cursor))
+
+        if tag in ("insert", "replace"):
+            for k in range(j2 - j1):
+                state.insert(pos + k, current[j1 + k])
+                steps.append(("".join(state), pos + k + 1))
+            pos += j2 - j1
+
+    return steps
+
+
+def _offset_to_line_col(text: str, offset: int) -> tuple[int, int]:
+    line = text.count("\n", 0, offset)
+    col = offset - text.rfind("\n", 0, offset) - 1
+    return line, col
+
+
+def render_text_diff_transition(prev: CodeSlide, current: CodeSlide) -> Iterator[Image.Image]:
+    """Golden path only: assumes the edited region stays in view throughout, so the
+    viewport is fixed (current's own declared position) - no scroll-while-diffing."""
+    prev_code, _, _ = strip_markers(prev.code, prev.language)
+    current_code, viewport_top, _ = strip_markers(current.code, current.language)
+
+    steps = _diff_steps(prev_code, current_code)
+    # Bookend with the cursor-less, fully-settled start/end states so this transition
+    # hands off cleanly to and from the plain (no-cursor) frames rendered for the
+    # slides themselves - duration is still driven by the number of actual edits.
+    states: list[tuple[str, int | None]] = [(prev_code, None), *steps, (current_code, None)]
+    duration = len(steps) / CHARS_PER_SECOND
+    frame_count = round(duration * FPS)
+    blink_frames = max(1, round(CURSOR_BLINK_SECONDS * FPS))
+
+    for i in range(frame_count):
+        t = i / (frame_count - 1) if frame_count > 1 else 1.0
+        state_idx = round(t * (len(states) - 1))
+        code, cursor_offset = states[state_idx]
+        cursor = _offset_to_line_col(code, cursor_offset) if cursor_offset is not None else None
+        cursor_visible = cursor is not None and (i // blink_frames) % 2 == 0
+
+        yield render_code_frame(
+            code,
+            current.language,
+            current.file_tree,
+            current.active_file,
+            viewport_top,
+            cursor=cursor if cursor_visible else None,
+        )

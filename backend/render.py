@@ -118,17 +118,28 @@ def _draw_code(
                 x = CODE_AREA_X + 8
 
 
-def render_code_slide(slide: CodeSlide, viewport_top: float | None = None) -> Image.Image:
-    if slide.language not in LEXERS:
-        raise ValueError(f"no lexer configured for language {slide.language!r}")
+def _draw_cursor(draw: ImageDraw.ImageDraw, line: int, col: int, viewport_top: float) -> None:
+    x = CODE_AREA_X + 8 + col * _char_width
+    y = (line - viewport_top) * LINE_HEIGHT
+    draw.rectangle([x, y, x + 2, y + LINE_HEIGHT], fill=COLOR_DEFAULT_TEXT)
 
-    stripped_code, default_viewport_top, highlighted = strip_markers(slide.code, slide.language)
-    effective_viewport_top = default_viewport_top if viewport_top is None else viewport_top
-    highlighted_set = set(highlighted)
-    total_lines = stripped_code.count("\n") + 1
 
+def render_code_frame(
+    code: str,
+    language: str,
+    file_tree: list[str],
+    active_file: str,
+    viewport_top: float,
+    highlighted_lines: set[int] = frozenset(),
+    cursor: tuple[int, int] | None = None,
+) -> Image.Image:
+    """Draws one frame from fully-resolved data - no marker stripping, no defaults."""
+    if language not in LEXERS:
+        raise ValueError(f"no lexer configured for language {language!r}")
+
+    total_lines = code.count("\n") + 1
     max_visible_count = FRAME_HEIGHT // LINE_HEIGHT
-    start_line = max(0, math.floor(effective_viewport_top))
+    start_line = max(0, math.floor(viewport_top))
     # +1 extra line so a partially-scrolled-in line at the bottom edge still draws;
     # Pillow clips anything actually outside the frame automatically.
     end_line = min(total_lines, start_line + max_visible_count + 1)
@@ -137,8 +148,23 @@ def render_code_slide(slide: CodeSlide, viewport_top: float | None = None) -> Im
     draw = ImageDraw.Draw(image)
 
     draw.rectangle([0, 0, SIDEBAR_WIDTH, FRAME_HEIGHT], fill=COLOR_SIDEBAR)
-    _draw_file_tree(draw, slide.file_tree, slide.active_file)
-    _draw_line_numbers(draw, effective_viewport_top, start_line, end_line)
-    _draw_code(draw, stripped_code, highlighted_set, effective_viewport_top, start_line, end_line, slide.language)
+    _draw_file_tree(draw, file_tree, active_file)
+    _draw_line_numbers(draw, viewport_top, start_line, end_line)
+    _draw_code(draw, code, highlighted_lines, viewport_top, start_line, end_line, language)
+    if cursor is not None:
+        _draw_cursor(draw, cursor[0], cursor[1], viewport_top)
 
     return image
+
+
+def render_code_slide(slide: CodeSlide, viewport_top: float | None = None) -> Image.Image:
+    stripped_code, default_viewport_top, highlighted = strip_markers(slide.code, slide.language)
+    effective_viewport_top = default_viewport_top if viewport_top is None else viewport_top
+    return render_code_frame(
+        stripped_code,
+        slide.language,
+        slide.file_tree,
+        slide.active_file,
+        effective_viewport_top,
+        set(highlighted),
+    )
