@@ -92,3 +92,11 @@ def render(req: RenderRequest):
         raise HTTPException(status_code=500, detail=str(e)) from e
 
     return {"ok": True, "output_path": str(output_path)}
+
+
+# Serves the Vite build output baked into the Docker image (see Dockerfile) -
+# checked only after the routes above, so the API is unaffected. check_dir=False
+# because frontend_dist doesn't exist in plain local dev (Vite's own dev server
+# handles that case instead - see dev.sh).
+FRONTEND_DIST = Path(__file__).parent.parent / "frontend_dist"
+app.frontend("/", directory=str(FRONTEND_DIST), check_dir=False)
