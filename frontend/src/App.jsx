@@ -62,6 +62,20 @@ function App() {
       .catch(() => setTtsStatus(null))
   }, [])
 
+  async function handleTtsBackendChange(backend) {
+    try {
+      const res = await fetch('/api/tts-backend', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ backend }),
+      })
+      const data = await res.json()
+      if (res.ok) setTtsStatus(data)
+    } catch {
+      // leave ttsStatus as-is on network failure
+    }
+  }
+
   async function handleOpen(targetPath) {
     setStatus('Opening...')
     try {
@@ -170,7 +184,18 @@ function App() {
         <button type="button" onClick={handleSave} disabled={!path}>
           Save
         </button>
-        {ttsDisplay && <span className={`tts-status ${ttsDisplay.className}`}>{ttsDisplay.text}</span>}
+        {ttsDisplay && (
+          <select
+            className={`tts-status ${ttsDisplay.className}`}
+            value={ttsStatus.backend}
+            disabled={rendering}
+            title={ttsDisplay.text}
+            onChange={(e) => handleTtsBackendChange(e.target.value)}
+          >
+            <option value="piper">🔊 Piper</option>
+            <option value="elevenlabs">🔊 ElevenLabs</option>
+          </select>
+        )}
         <button type="button" onClick={handleRender} disabled={!path || rendering || ttsBlocked}>
           {rendering ? 'Rendering…' : 'Render'}
         </button>

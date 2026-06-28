@@ -29,6 +29,13 @@
   font-size: 13px;
   white-space: nowrap;
   border-radius: 4px;
+  border: none;
+  cursor: pointer;
+}
+
+.tts-status:disabled {
+  cursor: default;
+  opacity: 0.6;
 }
 
 .tts-status-piper {

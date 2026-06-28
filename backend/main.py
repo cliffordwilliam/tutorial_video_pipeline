@@ -27,6 +27,10 @@ class RenderRequest(BaseModel):
     path: str
 
 
+class TtsBackendRequest(BaseModel):
+    backend: Literal["piper", "elevenlabs"]
+
+
 class BrowseEntry(BaseModel):
     name: str
     type: Literal["dir", "file"]
@@ -121,6 +125,16 @@ def tts_status():
         configured = bool(os.environ.get("ELEVENLABS_API_KEY")) and bool(os.environ.get("ELEVENLABS_VOICE_ID"))
         return {"backend": "elevenlabs", "configured": configured}
     return {"backend": "piper", "configured": True}
+
+
+@app.post("/api/tts-backend")
+def set_tts_backend(req: TtsBackendRequest):
+    # In-memory only - flips which branch synthesize() takes on its next call. Never
+    # touches backend/.env or re-runs load_dotenv(), so credentials still only ever
+    # enter the process at startup; switching to "elevenlabs" without a configured key
+    # is allowed here and simply fails at render time, same as it does today.
+    os.environ["TTS_BACKEND"] = req.backend
+    return tts_status()
 
 
 @app.post("/api/render")
