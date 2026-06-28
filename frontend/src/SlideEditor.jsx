@@ -1,10 +1,8 @@
 import { useState } from 'react'
-import CodePreview from './CodePreview'
 import FileTreeEditor from './FileTreeEditor'
+import ImageRectEditor from './ImageRectEditor'
 
-const RECT_FIELDS = ['x', 'y', 'w', 'h']
-
-function SlideEditor({ slide, onChange }) {
+function SlideEditor({ slide, onChange, scriptPath }) {
   const [clipboard, setClipboard] = useState(null)
 
   if (!slide) {
@@ -13,10 +11,6 @@ function SlideEditor({ slide, onChange }) {
 
   function set(field, value) {
     onChange({ ...slide, [field]: value })
-  }
-
-  function setRectField(field, value) {
-    set('rect', { ...slide.rect, [field]: Number(value) || 0 })
   }
 
   const filePaths = slide.type === 'code' ? slide.file_tree.filter((p) => !p.endsWith('/')) : []
@@ -68,8 +62,6 @@ function SlideEditor({ slide, onChange }) {
               spellCheck={false}
             />
           </label>
-
-          <CodePreview key={`preview-${slide._key}`} slide={slide} />
         </>
       ) : (
         <>
@@ -78,28 +70,14 @@ function SlideEditor({ slide, onChange }) {
             <input type="text" value={slide.src} onChange={(e) => set('src', e.target.value)} />
           </label>
 
-          <label className="checkbox-label">
-            <input
-              type="checkbox"
-              checked={slide.rect !== null}
-              onChange={(e) => set('rect', e.target.checked ? { x: 0, y: 0, w: 0, h: 0 } : null)}
+          {slide.src && (
+            <ImageRectEditor
+              key={`rect-${slide._key}`}
+              scriptPath={scriptPath}
+              src={slide.src}
+              rect={slide.rect}
+              onChange={(rect) => set('rect', rect)}
             />
-            Annotation rect
-          </label>
-
-          {slide.rect !== null && (
-            <div className="rect-editor">
-              {RECT_FIELDS.map((field) => (
-                <label key={field}>
-                  {field}
-                  <input
-                    type="number"
-                    value={slide.rect[field]}
-                    onChange={(e) => setRectField(field, e.target.value)}
-                  />
-                </label>
-              ))}
-            </div>
           )}
         </>
       )}

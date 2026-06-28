@@ -174,6 +174,7 @@ function App() {
         <SlideEditor
           slide={selectedIndex !== null ? slides[selectedIndex] : null}
           onChange={updateSelectedSlide}
+          scriptPath={path}
         />
       </div>
 

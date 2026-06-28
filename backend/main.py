@@ -1,14 +1,13 @@
-import io
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Response
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from markers import MarkerError
-from models import CodeSlide, Slide
+from models import Slide
 from orchestrator import render_script
 from parser import ScriptParseError, parse_script, serialize_script
-from render import render_code_slide
 
 app = FastAPI()
 
@@ -61,6 +60,20 @@ def write_file(req: SaveRequest):
     return {"ok": True}
 
 
+@app.get("/api/image")
+def read_image(path: str):
+    if not path:
+        raise HTTPException(status_code=400, detail="path is required")
+
+    file_path = Path(path)
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="File not found")
+    if file_path.is_dir():
+        raise HTTPException(status_code=400, detail="path is a directory")
+
+    return FileResponse(file_path)
+
+
 @app.post("/api/render")
 def render(req: RenderRequest):
     if not req.path:
@@ -79,18 +92,3 @@ def render(req: RenderRequest):
         raise HTTPException(status_code=500, detail=str(e)) from e
 
     return {"ok": True, "output_path": str(output_path)}
-
-
-@app.post("/api/preview/frame")
-def preview_frame(slide: Slide):
-    if not isinstance(slide, CodeSlide):
-        raise HTTPException(status_code=400, detail="frame preview is only implemented for code slides so far")
-
-    try:
-        image = render_code_slide(slide)
-    except (MarkerError, ValueError) as e:
-        raise HTTPException(status_code=400, detail=str(e)) from e
-
-    buf = io.BytesIO()
-    image.save(buf, format="PNG")
-    return Response(content=buf.getvalue(), media_type="image/png")
