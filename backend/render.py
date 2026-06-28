@@ -1,3 +1,4 @@
+import math
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
@@ -74,23 +75,24 @@ def _draw_file_tree(draw: ImageDraw.ImageDraw, file_tree: list[str], active_file
         y += UI_FONT_SIZE + 8
 
 
-def _draw_line_numbers(draw: ImageDraw.ImageDraw, first_line_number: int, visible_count: int) -> None:
-    for i in range(visible_count):
-        y = i * LINE_HEIGHT
-        draw.text((SIDEBAR_WIDTH + 10, y), str(first_line_number + i), font=_code_font, fill=COLOR_LINE_NUMBERS)
+def _draw_line_numbers(draw: ImageDraw.ImageDraw, viewport_top: float, start_line: int, end_line: int) -> None:
+    for line_idx in range(start_line, end_line):
+        y = (line_idx - viewport_top) * LINE_HEIGHT
+        draw.text((SIDEBAR_WIDTH + 10, y), str(line_idx + 1), font=_code_font, fill=COLOR_LINE_NUMBERS)
 
 
 def _draw_code(
     draw: ImageDraw.ImageDraw,
     stripped_code: str,
     highlighted_lines: set[int],
-    viewport_top: int,
-    visible_count: int,
+    viewport_top: float,
+    start_line: int,
+    end_line: int,
     language: str,
 ) -> None:
-    for i in range(visible_count):
-        if viewport_top + i in highlighted_lines:
-            y = i * LINE_HEIGHT
+    for line_idx in range(start_line, end_line):
+        if line_idx in highlighted_lines:
+            y = (line_idx - viewport_top) * LINE_HEIGHT
             draw.rectangle([CODE_AREA_X, y, FRAME_WIDTH, y + LINE_HEIGHT], fill=COLOR_HIGHLIGHT_BG)
 
     # Lex the whole code in one pass (not line-by-line) so multi-line constructs
@@ -103,7 +105,11 @@ def _draw_code(
 
         parts = text.split("\n")
         for part_idx, part in enumerate(parts):
-            if part and viewport_top <= line_idx < viewport_top + visible_count:
+            # part.strip() guards against a Pillow bug: drawing a whitespace-only
+            # string at a negative y (a partially-scrolled-off line, possible now
+            # that viewport_top can be fractional) raises "bad image size" inside
+            # font.render - whitespace has no visible ink either way, so skip it.
+            if part.strip() and start_line <= line_idx < end_line:
                 y = (line_idx - viewport_top) * LINE_HEIGHT
                 draw.text((x, y), part, font=_code_font, fill=color)
             x += _char_width * len(part)
@@ -112,21 +118,27 @@ def _draw_code(
                 x = CODE_AREA_X + 8
 
 
-def render_code_slide(slide: CodeSlide) -> Image.Image:
+def render_code_slide(slide: CodeSlide, viewport_top: float | None = None) -> Image.Image:
     if slide.language not in LEXERS:
         raise ValueError(f"no lexer configured for language {slide.language!r}")
 
-    stripped_code, viewport_top, highlighted = strip_markers(slide.code, slide.language)
+    stripped_code, default_viewport_top, highlighted = strip_markers(slide.code, slide.language)
+    effective_viewport_top = default_viewport_top if viewport_top is None else viewport_top
     highlighted_set = set(highlighted)
     total_lines = stripped_code.count("\n") + 1
-    visible_count = min(FRAME_HEIGHT // LINE_HEIGHT, max(0, total_lines - viewport_top))
+
+    max_visible_count = FRAME_HEIGHT // LINE_HEIGHT
+    start_line = max(0, math.floor(effective_viewport_top))
+    # +1 extra line so a partially-scrolled-in line at the bottom edge still draws;
+    # Pillow clips anything actually outside the frame automatically.
+    end_line = min(total_lines, start_line + max_visible_count + 1)
 
     image = Image.new("RGB", (FRAME_WIDTH, FRAME_HEIGHT), COLOR_BACKGROUND)
     draw = ImageDraw.Draw(image)
 
     draw.rectangle([0, 0, SIDEBAR_WIDTH, FRAME_HEIGHT], fill=COLOR_SIDEBAR)
     _draw_file_tree(draw, slide.file_tree, slide.active_file)
-    _draw_line_numbers(draw, viewport_top + 1, visible_count)
-    _draw_code(draw, stripped_code, highlighted_set, viewport_top, visible_count, slide.language)
+    _draw_line_numbers(draw, effective_viewport_top, start_line, end_line)
+    _draw_code(draw, stripped_code, highlighted_set, effective_viewport_top, start_line, end_line, slide.language)
 
     return image

@@ -52,7 +52,7 @@ function SlideEditor({ slide, onChange }) {
           </label>
 
           <FileTreeEditor
-            key={slide._key}
+            key={`tree-${slide._key}`}
             fileTree={slide.file_tree}
             onChange={(file_tree) => set('file_tree', file_tree)}
             clipboard={clipboard}
@@ -69,7 +69,7 @@ function SlideEditor({ slide, onChange }) {
             />
           </label>
 
-          <CodePreview key={slide._key} slide={slide} />
+          <CodePreview key={`preview-${slide._key}`} slide={slide} />
         </>
       ) : (
         <>
