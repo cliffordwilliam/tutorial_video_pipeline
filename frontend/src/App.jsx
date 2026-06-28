@@ -196,7 +196,12 @@ function App() {
             <option value="elevenlabs">🔊 ElevenLabs</option>
           </select>
         )}
-        <button type="button" onClick={handleRender} disabled={!path || rendering || ttsBlocked}>
+        <button
+          type="button"
+          className="primary"
+          onClick={handleRender}
+          disabled={!path || rendering || ttsBlocked}
+        >
           {rendering ? 'Rendering…' : 'Render'}
         </button>
       </div>
