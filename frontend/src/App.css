@@ -179,6 +179,23 @@
   padding: 8px;
 }
 
+.preview-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.preview-error {
+  color: #f48771;
+  font-size: 13px;
+}
+
+.preview-image {
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--border);
+}
+
 .status-bar {
   padding: 4px 8px;
   font-size: 12px;

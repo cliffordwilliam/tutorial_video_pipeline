@@ -1,10 +1,13 @@
+import io
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Response
 from pydantic import BaseModel
 
-from models import Slide
+from markers import MarkerError
+from models import CodeSlide, Slide
 from parser import ScriptParseError, parse_script, serialize_script
+from render import render_code_slide
 
 app = FastAPI()
 
@@ -51,3 +54,18 @@ def write_file(req: SaveRequest):
     file_path.write_text(serialize_script(req.slides))
 
     return {"ok": True}
+
+
+@app.post("/api/preview/frame")
+def preview_frame(slide: Slide):
+    if not isinstance(slide, CodeSlide):
+        raise HTTPException(status_code=400, detail="frame preview is only implemented for code slides so far")
+
+    try:
+        image = render_code_slide(slide)
+    except (MarkerError, ValueError) as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+    buf = io.BytesIO()
+    image.save(buf, format="PNG")
+    return Response(content=buf.getvalue(), media_type="image/png")

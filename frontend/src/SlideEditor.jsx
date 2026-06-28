@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import CodePreview from './CodePreview'
 import FileTreeEditor from './FileTreeEditor'
 
 const RECT_FIELDS = ['x', 'y', 'w', 'h']
@@ -67,6 +68,8 @@ function SlideEditor({ slide, onChange }) {
               spellCheck={false}
             />
           </label>
+
+          <CodePreview key={slide._key} slide={slide} />
         </>
       ) : (
         <>
