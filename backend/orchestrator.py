@@ -8,6 +8,8 @@ from transition_render import (
     FPS,
     render_fade_transition,
     render_file_switch_transition,
+    render_file_tree_change_transition,
+    render_highlight_change_transition,
     render_lerp_rect_transition,
     render_rect_fade_transition,
     render_scroll_transition,
@@ -30,6 +32,10 @@ def _render_transition_segment(transition, prev, slide, script_dir, path) -> Non
         frames = render_text_diff_transition(prev, slide)
     elif transition == "file_switch":
         frames = render_file_switch_transition(prev, slide)
+    elif transition == "file_tree_change":
+        frames = render_file_tree_change_transition(prev, slide)
+    elif transition == "highlight_change":
+        frames = render_highlight_change_transition(prev, slide)
     elif transition == "lerp_rect":
         frames = render_lerp_rect_transition(slide, prev.rect, slide.rect, script_dir)
     elif transition == "rect_fade":
@@ -67,9 +73,7 @@ def render_script(script_path: Path, output_path: Path) -> None:
 
         for i, slide in enumerate(slides):
             transition = transitions[i]
-            # file_tree_change resolves but has no render function - real editors
-            # don't animate the file list, so it contributes no transition segment.
-            if transition is not None and transition != "file_tree_change":
+            if transition is not None:
                 trans_path = tmp / f"segment_{len(segment_paths):04d}.mkv"
                 _render_transition_segment(transition, slides[i - 1], slide, script_dir, trans_path)
                 segment_paths.append(trans_path)

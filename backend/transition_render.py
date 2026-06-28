@@ -16,12 +16,27 @@ CURSOR_BLINK_SECONDS = 0.25
 FADE_SECONDS = 0.3  # spec's exact number, both phases
 LERP_RECT_SECONDS = 0.5  # spec's exact number
 FILE_SWITCH_SECONDS = 0.3  # quick UI cross-fade, not a scene transition
+FILE_TREE_CHANGE_SECONDS = 0.3
+HIGHLIGHT_CHANGE_SECONDS = 0.3
 RECT_FADE_SECONDS = 0.3
 
 
 def ease_in_out_cubic(t: float) -> float:
     """Standard cubic ease-in-out - smooth acceleration then deceleration."""
     return 4 * t**3 if t < 0.5 else 1 - (-2 * t + 2) ** 3 / 2
+
+
+def _fade(frame_old: Image.Image, frame_new: Image.Image, duration: float) -> Iterator[Image.Image]:
+    """Plain linear cross-fade between two full frames. Wherever the two frames are
+    pixel-identical (e.g. the unchanged code pane during file_tree_change, or the
+    unchanged file-list labels during file_switch), Image.blend reproduces that exact
+    pixel at every ratio - so the fade is automatically scoped to whatever actually
+    differs between the two frames, with no need to crop, mask, or diff anything."""
+    frame_count = round(duration * FPS)
+
+    for i in range(frame_count):
+        t = i / (frame_count - 1) if frame_count > 1 else 1.0
+        yield Image.blend(frame_old, frame_new, t)
 
 
 def render_scroll_transition(slide: CodeSlide, from_viewport: float, to_viewport: float) -> Iterator[Image.Image]:
@@ -37,25 +52,42 @@ def render_scroll_transition(slide: CodeSlide, from_viewport: float, to_viewport
 
 
 def render_file_switch_transition(prev: CodeSlide, current: CodeSlide) -> Iterator[Image.Image]:
-    """The code pane cuts instantly to current's content (real editors don't animate
-    this); only the sidebar's highlighted row cross-fades from prev.active_file to
-    current.active_file. Both blended frames use current's own code/file_tree/viewport
-    and differ only in which file is passed as active_file, so blending them only
-    visibly affects the highlight band - no special-cased drawing needed. If
-    prev.active_file isn't even in current.file_tree (e.g. renamed away), the first
-    frame simply has nothing highlighted, degrading to a clean fade-in."""
+    """Cross-fades prev's own rendered frame into current's own rendered frame -
+    content swap and sidebar highlight move both happen together in one fade.
+    Wherever the two frames are pixel-identical (e.g. unchanged file_tree labels),
+    the fade is a no-op there automatically - see _fade()."""
+    yield from _fade(render_code_slide(prev), render_code_slide(current), FILE_SWITCH_SECONDS)
+
+
+def render_file_tree_change_transition(prev: CodeSlide, current: CodeSlide) -> Iterator[Image.Image]:
+    """Same active_file/code, only the sidebar's file list differs. Both faded frames
+    use current's own code/active_file/viewport/highlight and differ only in which
+    file_tree is passed, so the fade only visibly affects the sidebar's file list -
+    the code pane is pixel-identical in both, so it never visibly changes."""
     current_code, viewport_top, highlighted = strip_markers(current.code, current.language)
-    frame_old_highlight = render_code_frame(
-        current_code, current.language, current.file_tree, prev.active_file, viewport_top, set(highlighted)
+    frame_old_tree = render_code_frame(
+        current_code, current.language, prev.file_tree, current.active_file, viewport_top, set(highlighted)
     )
-    frame_new_highlight = render_code_frame(
+    frame_new_tree = render_code_frame(
         current_code, current.language, current.file_tree, current.active_file, viewport_top, set(highlighted)
     )
-    frame_count = round(FILE_SWITCH_SECONDS * FPS)
+    yield from _fade(frame_old_tree, frame_new_tree, FILE_TREE_CHANGE_SECONDS)
 
-    for i in range(frame_count):
-        t = i / (frame_count - 1) if frame_count > 1 else 1.0
-        yield Image.blend(frame_old_highlight, frame_new_highlight, t)
+
+def render_highlight_change_transition(prev: CodeSlide, current: CodeSlide) -> Iterator[Image.Image]:
+    """Same active_file/file_tree/code, only which lines are @highlight-marked
+    differs. Both faded frames use current's own code/file_tree/active_file/viewport
+    and differ only in which highlighted_lines set is passed, so the fade only
+    visibly affects the highlight band."""
+    current_code, viewport_top, current_highlighted = strip_markers(current.code, current.language)
+    _, _, prev_highlighted = strip_markers(prev.code, prev.language)
+    frame_old_highlight = render_code_frame(
+        current_code, current.language, current.file_tree, current.active_file, viewport_top, set(prev_highlighted)
+    )
+    frame_new_highlight = render_code_frame(
+        current_code, current.language, current.file_tree, current.active_file, viewport_top, set(current_highlighted)
+    )
+    yield from _fade(frame_old_highlight, frame_new_highlight, HIGHLIGHT_CHANGE_SECONDS)
 
 
 def _diff_steps(prev: str, current: str) -> list[tuple[str, int]]:

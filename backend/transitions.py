@@ -3,7 +3,9 @@ from typing import Literal
 from markers import strip_markers
 from models import CodeSlide, ImageSlide, Slide
 
-Transition = Literal["text_diff", "scroll_only", "file_switch", "file_tree_change", "fade", "lerp_rect", "rect_fade"]
+Transition = Literal[
+    "text_diff", "scroll_only", "file_switch", "file_tree_change", "highlight_change", "fade", "lerp_rect", "rect_fade"
+]
 
 
 def resolve_transition(prev: Slide, current: Slide) -> Transition:
@@ -16,10 +18,12 @@ def resolve_transition(prev: Slide, current: Slide) -> Transition:
         # string - moving just the @viewport marker to a different line changes
         # the raw text but is, per spec, still "same content, different viewport"
         # (scroll_only), not text_diff.
-        prev_code, _, _ = strip_markers(prev.code, prev.language)
-        current_code, _, _ = strip_markers(current.code, current.language)
+        prev_code, _, prev_highlighted = strip_markers(prev.code, prev.language)
+        current_code, _, current_highlighted = strip_markers(current.code, current.language)
         if prev_code != current_code:
             return "text_diff"
+        if prev_highlighted != current_highlighted:
+            return "highlight_change"
         return "scroll_only"
 
     if isinstance(prev, ImageSlide) and isinstance(current, ImageSlide):
