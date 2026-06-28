@@ -61,6 +61,22 @@
   background: var(--accent-bg);
 }
 
+.slide-list li.dragging {
+  opacity: 0.4;
+}
+
+.slide-list li.drag-over {
+  box-shadow: inset 0 2px 0 0 var(--text-h);
+}
+
+.slide-drag-handle {
+  display: flex;
+  align-items: center;
+  padding: 0 6px;
+  cursor: grab;
+  color: var(--text-h);
+}
+
 .slide-row {
   flex: 1;
   display: flex;

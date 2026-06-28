@@ -6,6 +6,7 @@ from pydantic import BaseModel
 
 from markers import MarkerError
 from models import CodeSlide, Slide
+from orchestrator import render_script
 from parser import ScriptParseError, parse_script, serialize_script
 from render import render_code_slide
 
@@ -19,6 +20,10 @@ class SlidesResponse(BaseModel):
 class SaveRequest(BaseModel):
     path: str
     slides: list[Slide]
+
+
+class RenderRequest(BaseModel):
+    path: str
 
 
 @app.get("/api/file", response_model=SlidesResponse)
@@ -54,6 +59,26 @@ def write_file(req: SaveRequest):
     file_path.write_text(serialize_script(req.slides))
 
     return {"ok": True}
+
+
+@app.post("/api/render")
+def render(req: RenderRequest):
+    if not req.path:
+        raise HTTPException(status_code=400, detail="path is required")
+
+    script_path = Path(req.path)
+    if not script_path.exists():
+        raise HTTPException(status_code=404, detail="File not found")
+
+    output_path = script_path.with_suffix(".mp4")
+    try:
+        render_script(script_path, output_path)
+    except (ScriptParseError, MarkerError) as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except RuntimeError as e:  # ffmpeg/piper subprocess failures
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+    return {"ok": True, "output_path": str(output_path)}
 
 
 @app.post("/api/preview/frame")

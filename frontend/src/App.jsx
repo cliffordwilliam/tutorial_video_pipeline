@@ -36,6 +36,7 @@ function App() {
   const [slides, setSlides] = useState([])
   const [selectedIndex, setSelectedIndex] = useState(null)
   const [status, setStatus] = useState('')
+  const [rendering, setRendering] = useState(false)
 
   const title = titleFromPath(path)
 
@@ -79,6 +80,28 @@ function App() {
     }
   }
 
+  async function handleRender() {
+    setRendering(true)
+    setStatus('Rendering...')
+    try {
+      const res = await fetch('/api/render', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setStatus(data.detail || 'Failed to render')
+        return
+      }
+      setStatus(`Rendered -> ${data.output_path}`)
+    } catch (err) {
+      setStatus(`Failed to render: ${err.message}`)
+    } finally {
+      setRendering(false)
+    }
+  }
+
   function addSlide(slide) {
     setSlides((prev) => {
       setSelectedIndex(prev.length)
@@ -98,6 +121,23 @@ function App() {
     setSlides((prev) => prev.map((s, idx) => (idx === selectedIndex ? updated : s)))
   }
 
+  function moveSlide(from, to) {
+    if (from === to) return
+    setSlides((prev) => {
+      const next = [...prev]
+      const [moved] = next.splice(from, 1)
+      next.splice(to, 0, moved)
+      return next
+    })
+    setSelectedIndex((prev) => {
+      if (prev === null) return prev
+      if (prev === from) return to
+      if (from < to && prev > from && prev <= to) return prev - 1
+      if (from > to && prev >= to && prev < from) return prev + 1
+      return prev
+    })
+  }
+
   return (
     <div className="app">
       <div className="toolbar">
@@ -114,6 +154,9 @@ function App() {
         <button type="button" onClick={handleSave} disabled={!path}>
           Save
         </button>
+        <button type="button" onClick={handleRender} disabled={!path || rendering}>
+          {rendering ? 'Rendering…' : 'Render'}
+        </button>
       </div>
 
       <div className="title-bar">{title ? `Title: ${title}` : 'No file open'}</div>
@@ -126,6 +169,7 @@ function App() {
           onAddCode={() => addSlide(newCodeSlide())}
           onAddImage={() => addSlide(newImageSlide())}
           onDelete={deleteSlide}
+          onReorder={moveSlide}
         />
         <SlideEditor
           slide={selectedIndex !== null ? slides[selectedIndex] : null}
