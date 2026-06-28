@@ -8,7 +8,7 @@ from pygments.style import Style
 from pygments.token import Token
 
 from markers import strip_markers
-from models import CodeSlide
+from models import CodeSlide, ImageSlide
 
 FRAME_WIDTH = 1920
 FRAME_HEIGHT = 1080
@@ -28,6 +28,8 @@ COLOR_DEFAULT_TEXT = "#d4d4d4"
 COLOR_HIGHLIGHT_BG = "#264f78"  # also reused below for the active-file sidebar row -
 # the spec's color table doesn't define one, and reusing the "highlighted" color keeps
 # a single consistent visual meaning rather than inventing an unspecified new color.
+COLOR_RECT_BORDER = "#ff0000"
+RECT_BORDER_WIDTH = 2
 
 FONT_PATH = Path(__file__).parent / "assets" / "fonts" / "JetBrainsMono-Regular.ttf"
 _code_font = ImageFont.truetype(str(FONT_PATH), CODE_FONT_SIZE)
@@ -168,3 +170,33 @@ def render_code_slide(slide: CodeSlide, viewport_top: float | None = None) -> Im
         effective_viewport_top,
         set(highlighted),
     )
+
+
+def render_image_slide(slide: ImageSlide, script_dir: Path) -> Image.Image:
+    source = Image.open(script_dir / slide.src)
+
+    scale = min(FRAME_WIDTH / source.width, FRAME_HEIGHT / source.height)
+    scaled_size = (round(source.width * scale), round(source.height * scale))
+    resized = source.resize(scaled_size).convert("RGBA")
+
+    offset_x = (FRAME_WIDTH - scaled_size[0]) // 2
+    offset_y = (FRAME_HEIGHT - scaled_size[1]) // 2
+
+    # Always go through alpha_composite (not paste-with-self-as-mask) per Pillow's
+    # own docs recommendation for combining images with respect to alpha channels -
+    # converting every source to RGBA uniformly means opaque sources (no real
+    # transparency) and ones with a real alpha channel both go through one path.
+    background = Image.new("RGBA", (FRAME_WIDTH, FRAME_HEIGHT), COLOR_BACKGROUND)
+    layer = Image.new("RGBA", (FRAME_WIDTH, FRAME_HEIGHT), (0, 0, 0, 0))
+    layer.paste(resized, (offset_x, offset_y))
+    frame = Image.alpha_composite(background, layer).convert("RGB")
+
+    if slide.rect is not None:
+        draw = ImageDraw.Draw(frame)
+        x0 = offset_x + slide.rect.x * scale
+        y0 = offset_y + slide.rect.y * scale
+        x1 = offset_x + (slide.rect.x + slide.rect.w) * scale
+        y1 = offset_y + (slide.rect.y + slide.rect.h) * scale
+        draw.rectangle([x0, y0, x1, y1], outline=COLOR_RECT_BORDER, width=RECT_BORDER_WIDTH)
+
+    return frame
