@@ -1,17 +1,20 @@
 from collections.abc import Iterator
 from difflib import SequenceMatcher
+from pathlib import Path
 
 from PIL import Image
 
 from markers import strip_markers
-from models import CodeSlide
-from render import render_code_frame, render_code_slide
+from models import CodeSlide, ImageSlide, Rect, Slide
+from render import FRAME_HEIGHT, FRAME_WIDTH, render_code_frame, render_code_slide, render_image_frame, render_slide
 
 FPS = 60
 SCROLL_SECONDS_PER_LINE = 0.1  # judgment call - spec says "proportional to distance", no exact rate given
 MAX_SCROLL_DURATION = 1.5  # spec's stated cap
 CHARS_PER_SECOND = 80  # spec's stated default; "configurable" is explicitly Phase 3, not now
 CURSOR_BLINK_SECONDS = 0.25
+FADE_SECONDS = 0.3  # spec's exact number, both phases
+LERP_RECT_SECONDS = 0.5  # spec's exact number
 
 
 def ease_in_out_cubic(t: float) -> float:
@@ -100,3 +103,40 @@ def render_text_diff_transition(prev: CodeSlide, current: CodeSlide) -> Iterator
             viewport_top,
             cursor=cursor if cursor_visible else None,
         )
+
+
+def render_fade_transition(prev: Slide, current: Slide, script_dir: Path) -> Iterator[Image.Image]:
+    """prev's frame fades to black, then black fades to current's frame. Works for
+    image<->image (different src) and any mixed code<->image pair."""
+    prev_frame = render_slide(prev, script_dir)
+    current_frame = render_slide(current, script_dir)
+    black = Image.new("RGB", (FRAME_WIDTH, FRAME_HEIGHT), (0, 0, 0))
+    frame_count = round(FADE_SECONDS * FPS)
+
+    for i in range(frame_count):
+        alpha = i / (frame_count - 1) if frame_count > 1 else 1.0
+        yield Image.blend(prev_frame, black, alpha)
+
+    for i in range(frame_count):
+        alpha = i / (frame_count - 1) if frame_count > 1 else 1.0
+        yield Image.blend(black, current_frame, alpha)
+
+
+def render_lerp_rect_transition(
+    slide: ImageSlide, from_rect: Rect, to_rect: Rect, script_dir: Path
+) -> Iterator[Image.Image]:
+    """Same image (same src) - only the rect's position/size animates. Golden path:
+    assumes both from_rect/to_rect are set (an author leaving one None mid-transition
+    isn't addressed by the spec's "lerp the rectangle position and size" either)."""
+    image_path = script_dir / slide.src
+    frame_count = round(LERP_RECT_SECONDS * FPS)
+
+    for i in range(frame_count):
+        t = ease_in_out_cubic(i / (frame_count - 1)) if frame_count > 1 else 1.0
+        rect = (
+            from_rect.x + (to_rect.x - from_rect.x) * t,
+            from_rect.y + (to_rect.y - from_rect.y) * t,
+            from_rect.w + (to_rect.w - from_rect.w) * t,
+            from_rect.h + (to_rect.h - from_rect.h) * t,
+        )
+        yield render_image_frame(image_path, rect)

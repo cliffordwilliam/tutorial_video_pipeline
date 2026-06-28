@@ -8,7 +8,7 @@ from pygments.style import Style
 from pygments.token import Token
 
 from markers import strip_markers
-from models import CodeSlide, ImageSlide
+from models import CodeSlide, ImageSlide, Slide
 
 FRAME_WIDTH = 1920
 FRAME_HEIGHT = 1080
@@ -172,8 +172,11 @@ def render_code_slide(slide: CodeSlide, viewport_top: float | None = None) -> Im
     )
 
 
-def render_image_slide(slide: ImageSlide, script_dir: Path) -> Image.Image:
-    source = Image.open(script_dir / slide.src)
+def render_image_frame(image_path: Path, rect: tuple[float, float, float, float] | None = None) -> Image.Image:
+    """Draws one frame from fully-resolved data - rect as a raw (x, y, w, h) tuple,
+    not a models.Rect (which has strict int fields and can't hold an interpolated
+    in-between position used during the lerp_rect transition)."""
+    source = Image.open(image_path)
 
     scale = min(FRAME_WIDTH / source.width, FRAME_HEIGHT / source.height)
     scaled_size = (round(source.width * scale), round(source.height * scale))
@@ -191,12 +194,22 @@ def render_image_slide(slide: ImageSlide, script_dir: Path) -> Image.Image:
     layer.paste(resized, (offset_x, offset_y))
     frame = Image.alpha_composite(background, layer).convert("RGB")
 
-    if slide.rect is not None:
+    if rect is not None:
+        x, y, w, h = rect
+        x0 = offset_x + x * scale
+        y0 = offset_y + y * scale
+        x1 = offset_x + (x + w) * scale
+        y1 = offset_y + (y + h) * scale
         draw = ImageDraw.Draw(frame)
-        x0 = offset_x + slide.rect.x * scale
-        y0 = offset_y + slide.rect.y * scale
-        x1 = offset_x + (slide.rect.x + slide.rect.w) * scale
-        y1 = offset_y + (slide.rect.y + slide.rect.h) * scale
         draw.rectangle([x0, y0, x1, y1], outline=COLOR_RECT_BORDER, width=RECT_BORDER_WIDTH)
 
     return frame
+
+
+def render_image_slide(slide: ImageSlide, script_dir: Path) -> Image.Image:
+    rect = (slide.rect.x, slide.rect.y, slide.rect.w, slide.rect.h) if slide.rect else None
+    return render_image_frame(script_dir / slide.src, rect)
+
+
+def render_slide(slide: Slide, script_dir: Path) -> Image.Image:
+    return render_code_slide(slide) if isinstance(slide, CodeSlide) else render_image_slide(slide, script_dir)
